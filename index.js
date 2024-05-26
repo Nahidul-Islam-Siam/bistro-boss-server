@@ -47,19 +47,36 @@ app.post('/jwt', async(req,res)=>{
   res.send({token})
 })
 
+// use verify admin after verifyToken
+const verifyAdmin = async (req,res,next)=>{
+const email = req.decoded.email
+const query = {email:email}
+const user = await userCollection.findOne(query)
+const isAdmin = user?.role === 'admin'
+if(!isAdmin){
+  return res.status(403).send({message: 'forbidden access'})
+
+}
+next()
+}
+
+
+
+
+
 
 // middleware
 const verifyToken = (req,res,next) => {
 // console.log('inside verify token', req.headers.authorization)
 if(!req.headers.authorization){
-  return res.status(401).send({message: 'forbidden access'})
+  return res.status(401).send({message: 'unauthorized access'})
 }
 const token = req.headers.authorization.split(' ')[1]
 console.log(token);
 jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err,decoded)=>{
   if(err){
     console.log(err);
-    return res.status(401).send({message: 'forbidden access'})
+    return res.status(401).send({message: 'unauthorized access'})
   }
   req.decoded = decoded
   next()
@@ -68,7 +85,7 @@ jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err,decoded)=>{
  
 
 // users related api
-app.get('/users',verifyToken, async (req,res)=>{
+app.get('/users',verifyToken, verifyAdmin,async (req,res)=>{
  
   const result = await userCollection.find().toArray()
   res.send(result)
@@ -78,8 +95,10 @@ app.get('/users',verifyToken, async (req,res)=>{
 app.get('/users/admin/:email',verifyToken, async(req,res)=>{
 const email = req.params.email
 if(email !== req.decoded.email){
-  return res.status(403).send({message: 'unauthrized access'})
+  return res.status(403).send({message: 'forbidden access'})
 }
+
+
 const query = {email:email}
 const user =  await userCollection.findOne(query)
 let admin = false
@@ -90,7 +109,7 @@ res.send({admin})
 })
 
 
-app.patch('/users/admin/:id',async (req,res)=>{
+app.patch('/users/admin/:id',verifyToken,verifyAdmin,async (req,res)=>{
   const id = req.params.id
   const filter = {_id: new ObjectId(id)}
   const updatedDoc = {
@@ -104,7 +123,7 @@ app.patch('/users/admin/:id',async (req,res)=>{
 
 
 
-app.delete('/users/:id',async(req,res)=>{
+app.delete('/users/:id',verifyToken,verifyAdmin,async(req,res)=>{
   const id = req.params.id
   const query = {_id: new ObjectId(id)}
   const result  = await userCollection.deleteOne(query)
@@ -131,6 +150,31 @@ app.post('/users', async(req,res)=>{
         const result = await menuCollection.find().toArray()
         res.send(result)
     })
+
+    app.get('/menu/:id', async(req,res)=>{
+      const id  = req.params.id
+      const query = {_id:id}
+      const result = await menuCollection.findOne(query)
+      res.send(result)
+  })
+  // update
+  
+
+
+app.post('/menu',verifyToken,verifyAdmin,async(req,res)=>{
+  const item=req.body
+  const result = await menuCollection.insertOne(item)
+  res.send(result)
+})
+
+
+// delete menu
+app.delete('/menu/:id',verifyToken,verifyAdmin,async(req,res)=>{
+  const id = req.params.id
+  const query = {_id:id}
+  const result = await menuCollection.deleteOne(query)
+  res.send(result)
+})
     
     app.get('/reviews', async(req,res)=>{
         const result = await reviewCollection.find().toArray()
