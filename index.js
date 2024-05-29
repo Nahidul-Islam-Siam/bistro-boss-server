@@ -1,8 +1,10 @@
 const express = require('express')
 const app = express()
 var jwt = require('jsonwebtoken');
+
 const cors = require('cors')
 require('dotenv').config()
+const stripe = require('stripe').Stripe(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000
 
 
@@ -72,7 +74,7 @@ if(!req.headers.authorization){
   return res.status(401).send({message: 'unauthorized access'})
 }
 const token = req.headers.authorization.split(' ')[1]
-console.log(token);
+// console.log(token);
 jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err,decoded)=>{
   if(err){
     console.log(err);
@@ -158,7 +160,23 @@ app.post('/users', async(req,res)=>{
       res.send(result)
   })
   // update
-  
+  app.patch('/menu/:id',async(req,res)=>{
+    const item = req.body
+    const id = req.params.id
+    const filter = {_id:(id)}
+    const updatedDoc = {
+      $set:{
+        name:item.name,
+        category:item.category,
+        price:item.price,
+        recipe:item.recipe,
+        image:item.image
+    }
+  }
+  const result = await menuCollection.updateOne(filter,updatedDoc)
+  res.send(result)
+  })
+
 
 
 app.post('/menu',verifyToken,verifyAdmin,async(req,res)=>{
@@ -202,6 +220,23 @@ app.delete('/carts/:id', async(req,res)=>{
   }
   const result = await cartCollection.deleteOne(query)
   res.send(result)
+})
+
+
+// Payment intent
+app.post('/create-payment-intent',async(req,res)=>{
+  const {price} = req.body
+  const amount = parseInt(price * 100)
+console.log(amount, 'amount inside the intent');
+  const paymentIntent = await stripe.paymentIntents.create({
+amount:amount,
+currency: 'usd',
+payment_method_types: ['card'],
+  })
+  res.send({
+    clientSecret: paymentIntent.client_secret
+  })
+  
 })
 
 
